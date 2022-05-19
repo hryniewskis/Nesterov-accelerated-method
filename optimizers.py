@@ -71,10 +71,11 @@ class Nesterov_Optimizers:
         L_k = L
         stop_criterion = False
         for iter in range(self.max_iter):
+            y_prev=y
             y, M = self.__gradient_iteration(y, L_k)[0:2]
             L_k = max(L, M * 1.0 / self.gamma_d)
             # TODO warunek stopu
-            if stop_criterion:
+            if (norm(y_prev-y)<=1e-5):
                 break
             # print(self.objective(y))
         self.is_trained = True
