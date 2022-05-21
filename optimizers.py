@@ -30,6 +30,10 @@ class Nesterov_Optimizers:
 
     def __objective(self, x):
         return self.__function_f(x) + self.__function_Psi(x)
+    
+    def __objective_subgradient(x, L):
+        T = self.__T_L(x, L)
+        return L * (y - T) + self.__gradient_f(T) - self.__gradient_f(y)
 
     def __m_L(self, y, x, L):
         # assert y.shape[0] == x.shape[0], "y and x have to be in the same shape"
