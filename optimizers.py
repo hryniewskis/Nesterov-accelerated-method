@@ -81,10 +81,10 @@ class Nesterov_Optimizers:
             y, M = self.__gradient_iteration(y, L_k)[0:2]
             L_k = max(L, M * 1.0 / self.gamma_d)
             # # TODO warunek stopu
-            # if norm(y_prev - y) <= 1e-5:
-            #     print("early stopping at", str(it + 1))
-            #     break
-            # print("iteration ",it,"objective function value ",self.__objective(y))
+            if norm(y_prev - y) <= 1e-5:
+                print("early stopping at", str(it + 1))
+                break
+            print("iteration ",it,"objective function value ",self.__objective(y))
         self.is_trained = True
         return y
 
@@ -104,10 +104,10 @@ class Nesterov_Optimizers:
             psi_d = psi_d + (1. / M) * self.lambda_
             v = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
             # # TODO warunek stopu
-            # if norm(y_prev - y) <= 1e-5:
-            #     print("early stopping at", str(it + 1))
-            #     break
-            # print("iteration ",it,"objective function value ",self.__objective(y))
+            if norm(y_prev - y) <= 1e-5:
+                print("early stopping at", str(it + 1))
+                break
+            print("iteration ",it,"objective function value ",self.__objective(y))
         self.is_trained = True
         return y
 
@@ -115,7 +115,7 @@ class Nesterov_Optimizers:
         assert L != 0, "L has to be different than 0"
         return (1 + np.sqrt(2 * A_k * L + 1)) / L
 
-    def __accelerated_method(self, x, L):
+    def __accelerated_method(self, x, L, coef):
         psi_a = np.full(shape=x.shape[0], fill_value=0.5)
         psi_b = -x
         # we know that A_k == psi_d
@@ -124,14 +124,25 @@ class Nesterov_Optimizers:
         x_k = x
         v_k = x
         for it in range(self.max_iter):
+            #print(f"Iteration {it}")
             L = L_k
+            #print(x_k)
             while True:
                 a = self.__quadratic_equation(L, A_k)
-                print(it,a)
+                #print(f"y before update: {v_k}")
+                #print(f"(A_k * x_k) before update: {(A_k * x_k)}")
+                #print(f"a before update: {a}")
+                #print(f"A_k before update: {A_k}")
+                #print(f"A_k + a before update: {A_k + a}")
+
+
                 y = ((A_k * x_k) + a * v_k) / (A_k + a)
+                #print(f"y is after update to: {y}")
                 T_L_y = self.__T_L(y, L)
                 obj_sub_T_L = self.__objective_subgradient(T_L_y,L)
+                #print("first part:", (np.dot(obj_sub_T_L, y - T_L_y)), "Second Part ", (1 / L) * norm(obj_sub_T_L) ** 2)
                 if (np.dot(obj_sub_T_L, y - T_L_y) < (1 / L) * norm(obj_sub_T_L) ** 2):
+                    #print(f"L is equal to:{L}")
                     L = L * self.gamma_u
                 else:
                     break
@@ -140,11 +151,16 @@ class Nesterov_Optimizers:
             A_k = A_k + a
             L_k = M_k / self.gamma_d
             x_k = T_L_y
-            psi_b = psi_b + (1. / a) * self.__gradient_f(x_k)
-            v_k = self.__minimum(a=psi_a, b=psi_b, d=A_k)
+            #print(f"psi_b before update: {psi_b}")
+            psi_b = psi_b + a * self.__gradient_f(x_k)
+            #print(f"psi_b after update: {psi_b}")
+            #print(f"self.__gradient_f(x_k) {self.__gradient_f(x_k)}")
+
+            v_k = self.__minimum(a=psi_a, b=psi_b, d=A_k*self.lambda_)
+            print(norm(x_k - coef))
         return x_k
 
-    def fit(self, X: np.matrix, y: np.array, method: str = "gradient"):
+    def fit(self, X: np.matrix, y: np.array, coef, method: str = "gradient"):
         # sprawdzić czy liczba wierszy w X=długośc wektora y
         # sprawdzić czy X nie jest macierzą zerową
         self.A = X
@@ -157,7 +173,7 @@ class Nesterov_Optimizers:
         elif method == "dual_gradient":
             return self.__dual_gradient_method(v=self.coef_, L=self.L)
         elif method == "accelerated":
-            return self.__accelerated_method(x=self.coef_, L=self.L)
+            return self.__accelerated_method(x=self.coef_, L=self.L, coef=coef)
         else:
             print("wrong argument")
             return None
