@@ -30,10 +30,10 @@ class Nesterov_Optimizers:
 
     def __objective(self, x):
         return self.__function_f(x) + self.__function_Psi(x)
-    
-    def __objective_subgradient(x, L):
+
+    def __objective_subgradient(self, x, L):
         T = self.__T_L(x, L)
-        return L * (y - T) + self.__gradient_f(T) - self.__gradient_f(y)
+        return L * (x - T) + self.__gradient_f(T) - self.__gradient_f(x)
 
     def __m_L(self, y, x, L):
         # assert y.shape[0] == x.shape[0], "y and x have to be in the same shape"
@@ -45,8 +45,8 @@ class Nesterov_Optimizers:
     @staticmethod
     def __minimum(a, b, d):
         # TODO sprawdzanie a>0 i d>0
-        assert np.all(a > 0), "all elements of vector a have to be positive"
-        assert np.all(d >= 0), "all elements of vector d have to be nonnegative"
+        #         assert np.all(a > 0), "all elements of vector a have to be positive"
+        #         assert np.all(d >= 0), "all elements of vector d have to be nonnegative"
 
         return np.where(
             b < -d,
@@ -84,7 +84,7 @@ class Nesterov_Optimizers:
             # if norm(y_prev - y) <= 1e-5:
             #     print("early stopping at", str(it + 1))
             #     break
-            #print("iteration ",it,"objective function value ",self.__objective(y))
+            # print("iteration ",it,"objective function value ",self.__objective(y))
         self.is_trained = True
         return y
 
@@ -93,16 +93,16 @@ class Nesterov_Optimizers:
         y = v
         # dalej to juz zostaje
         L_k = L
-        a = np.full(shape=v.shape[0], fill_value=0.5)
-        b = -v
-        d = 0
+        psi_a = np.full(shape=v.shape[0], fill_value=0.5)
+        psi_b = -v
+        psi_d = 0
         for it in range(self.max_iter):
             y_prev = y
             y, M = self.__gradient_iteration(v, L_k)[0:2]
             L_k = max(L, M * 1.0 / self.gamma_d)
-            b = b + (1. / M) * self.__gradient_f(v)
-            d = d + (1. / M) * self.lambda_
-            v = self.__minimum(a=a, b=b, d=d)
+            psi_b = psi_b + (1. / M) * self.__gradient_f(v)
+            psi_d = psi_d + (1. / M) * self.lambda_
+            v = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
             # # TODO warunek stopu
             # if norm(y_prev - y) <= 1e-5:
             #     print("early stopping at", str(it + 1))
@@ -111,11 +111,40 @@ class Nesterov_Optimizers:
         self.is_trained = True
         return y
 
-    def __accelerated_method(v, L):
-        print("not implemented")
-        pass
+    def __quadratic_equation(self, L, A_k):
+        assert L != 0, "L has to be different than 0"
+        return (1 + np.sqrt(2 * A_k * L + 1)) / L
 
-    def fit(self, X: np.matrix, y: np.array, method: str = "gradient_method"):
+    def __accelerated_method(self, x, L):
+        psi_a = np.full(shape=x.shape[0], fill_value=0.5)
+        psi_b = -x
+        # we know that A_k == psi_d
+        A_k = 0
+        L_k = L
+        x_k = x
+        v_k = x
+        for it in range(self.max_iter):
+            L = L_k
+            while True:
+                a = self.__quadratic_equation(L, A_k)
+                print(it,a)
+                y = ((A_k * x_k) + a * v_k) / (A_k + a)
+                T_L_y = self.__T_L(y, L)
+                obj_sub_T_L = self.__objective_subgradient(T_L_y,L)
+                if (np.dot(obj_sub_T_L, y - T_L_y) < (1 / L) * norm(obj_sub_T_L) ** 2):
+                    L = L * self.gamma_u
+                else:
+                    break
+            y_k = y
+            M_k = L
+            A_k = A_k + a
+            L_k = M_k / self.gamma_d
+            x_k = T_L_y
+            psi_b = psi_b + (1. / a) * self.__gradient_f(x_k)
+            v_k = self.__minimum(a=psi_a, b=psi_b, d=A_k)
+        return x_k
+
+    def fit(self, X: np.matrix, y: np.array, method: str = "gradient"):
         # sprawdzić czy liczba wierszy w X=długośc wektora y
         # sprawdzić czy X nie jest macierzą zerową
         self.A = X
@@ -123,12 +152,12 @@ class Nesterov_Optimizers:
         self.b = y
         self.L = norm(X) ** 2
 
-        if method == "gradient_method":
+        if method == "gradient":
             return self.__gradient_method(y=self.coef_, L=self.L)
-        elif method == "dual_gradient_method":
+        elif method == "dual_gradient":
             return self.__dual_gradient_method(v=self.coef_, L=self.L)
-        elif method == "accelerated_method":
-            return self.__accelerated_method(v=self.coef_, L=self.L)
+        elif method == "accelerated":
+            return self.__accelerated_method(x=self.coef_, L=self.L)
         else:
             print("wrong argument")
             return None
