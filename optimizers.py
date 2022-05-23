@@ -5,6 +5,7 @@ from numpy.linalg import norm
 class Nesterov_Optimizers:
     def __init__(self, gamma_u: float = 2, gamma_d: float = 2, lambda_: float = 1.0, like_lasso: bool = True,
                  max_iter: int = 1000):
+        # TODO add description
         assert (gamma_u > 1), "parameter gamma_u has to be greater than 1"
         assert (gamma_d >= 1), "parameter gamma_d has to be greater or equal 1"
         assert (lambda_ >= 0), "parameter lambda_ has to be nonnegative"
@@ -141,6 +142,7 @@ class Nesterov_Optimizers:
         return x
 
     def fit(self, X: np.matrix, y: np.array, method: str = "accelerated"):
+        # TODO add description
         assert y.ndim == 1, "y has to be 1-dimensional"
         assert X.shape[0] == len(y), "number of rows in X has to be the same as length of y"
         assert X.any(), "X cannot be a zero matrix"
@@ -162,12 +164,14 @@ class Nesterov_Optimizers:
             raise ValueError('wrong argument "method"')
 
     def predict(self, X):
+        # TODO add description
         if self.is_trained:
             return np.dot(X, self.coef_)
         else:
             raise ValueError("Model isn't trained")
 
     def get_coef(self):
+        # TODO add description
         if self.is_trained:
             return self.coef_
         else:
