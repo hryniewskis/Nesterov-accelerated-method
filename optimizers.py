@@ -81,7 +81,7 @@ class Nesterov_Optimizers:
                 break
         self.is_trained = True
         self.coef_ = x
-        return x
+        #return x
 
     def __dual_gradient_method(self, x, L):
         lambda_ = self.lambda_
@@ -105,7 +105,7 @@ class Nesterov_Optimizers:
                 break
         self.is_trained = True
         self.coef_ = y
-        return y
+        #return y
 
     def __accelerated_method(self, x, L):
         gamma_u = self.gamma_u
@@ -139,7 +139,7 @@ class Nesterov_Optimizers:
             v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
         self.is_trained = True
         self.coef_ = x
-        return x
+        #return x
 
     def fit(self, X: np.matrix, y: np.array, method: str = "accelerated"):
         # TODO add description
