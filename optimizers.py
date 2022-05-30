@@ -4,7 +4,7 @@ from numpy.linalg import norm
 
 class Nesterov_Optimizers:
     def __init__(self, gamma_u: float = 2, gamma_d: float = 2, lambda_: float = 1.0, like_lasso: bool = True,
-                 max_iter: int = 1000):
+                 max_iter: int = 1000, tol=1e-4, eps=1e-7):
         # TODO add description
         assert (gamma_u > 1), "parameter gamma_u has to be greater than 1"
         assert (gamma_d >= 1), "parameter gamma_d has to be greater or equal 1"
@@ -14,6 +14,8 @@ class Nesterov_Optimizers:
         self.lambda_ = lambda_
         self.gamma_u = gamma_u
         self.gamma_d = gamma_d
+        self.tol = tol
+        self.eps = eps
         self.max_iter = max_iter
         self.is_trained = False
         self.like_lasso = like_lasso
@@ -69,19 +71,39 @@ class Nesterov_Optimizers:
         S_L = norm(self.__gradient_f(T) - self.__gradient_f(x)) / norm(T - x)
         return T, M, S_L
 
+    def __stopping_crit(self, x):
+        eps = self.eps
+        ### coś jest nie tak!!!
+        lambda_ = 0.5 * self.lambda_
+        # tutaj nie powinno być tego 0.5 ale inaczej to to nigdy nie działa :(
+        grad_f = self.__gradient_f(x)
+        if np.any(np.abs(x) < eps):
+            print("sth close to 0 in x")
+            subgrad_Psi = np.where(np.abs(x) >= eps, np.sign(x) * lambda_,
+                                   -np.sign(grad_f) * np.minimum(np.abs(grad_f), lambda_))
+        else:
+            subgrad_Psi = np.sign(x) * lambda_
+        print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
+        return norm(grad_f + subgrad_Psi) <= self.tol
+
+    def __simple_stopping_crit(self, x_prev, x):
+        return norm(x_prev - x) < self.tol
+
     def __gradient_method(self, x, L):
         gamma_d = self.gamma_d
         for it in range(self.max_iter):
             x_prev = x
             x, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / gamma_d)
-            # # TODO stop criterion
-            if norm(x_prev - x) <= 1e-5:
-                print("early stopping at", str(it + 1))
+            if self.__stopping_crit(x):
+                print("early stopping at ", it)
                 break
+            if self.__simple_stopping_crit(x_prev,x):
+                print("simple stopping?")
         self.is_trained = True
+        x = np.where(np.isclose(x, 0, atol=self.tol), 0, x)
         self.coef_ = x
-        #return x
+        # return x
 
     def __dual_gradient_method(self, x, L):
         lambda_ = self.lambda_
@@ -99,13 +121,15 @@ class Nesterov_Optimizers:
             psi_b = psi_b + (1. / M) * self.__gradient_f(x)
             psi_d = psi_d + (1. / M) * lambda_
             x = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
-            # TODO stop criterion
-            if norm(y_prev - y) <= 1e-5:
-                print("early stopping at", str(it + 1))
+            if self.__stopping_crit(y):
+                print("early stopping at ", it)
                 break
+            if self.__simple_stopping_crit(y_prev,y):
+                print("simple stopping?")
         self.is_trained = True
+        y = np.where(np.isclose(y, 0, atol=self.tol), 0, y)
         self.coef_ = y
-        #return y
+        # return y
 
     def __accelerated_method(self, x, L):
         gamma_u = self.gamma_u
@@ -131,15 +155,17 @@ class Nesterov_Optimizers:
             A = A + aL / L
             L = L / gamma_d
             x = T_y
-            # TODO stop criterion
-            if norm(x_prev - x) <= 1e-5:
-                print("early stopping at", str(it + 1))
+            if self.__stopping_crit(x):
+                print("early stopping at ", it)
                 break
+            if self.__simple_stopping_crit(x_prev,x):
+                print("simple stopping?")
             psi_b = psi_b + aL * self.__gradient_f(x) / L
             v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
         self.is_trained = True
+        x = np.where(np.isclose(x, 0, atol=self.tol), 0, x)
         self.coef_ = x
-        #return x
+        # return x
 
     def fit(self, X: np.matrix, y: np.array, method: str = "accelerated"):
         # TODO add description
@@ -149,7 +175,7 @@ class Nesterov_Optimizers:
 
         self.A = X
         if self.like_lasso:
-            self.lambda_ = self.lambda_ / X.shape[1]
+            self.lambda_ = self.lambda_ / X.shape[0]
         self.coef_ = np.full(shape=X.shape[1], fill_value=0)
         self.b = y
         self.L = norm(X) ** 2
