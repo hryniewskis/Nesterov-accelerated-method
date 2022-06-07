@@ -6,11 +6,11 @@ import pandas as pd
 from math import sqrt
 
 
-def test_models(X_train, y_train, eps=1e-3, max_iter=2500):
+def test_models(X_train, y_train):
     methods = ['accelerated', 'gradient', 'dual_gradient']
     models = []
-    model = Nesterov_Optimizers(eps=eps, max_iter=max_iter)
     for method in methods:
+        model = Nesterov_Optimizers()
         model.fit(X_train, y_train, method=method)
         models.append(model)
     model = Lasso()

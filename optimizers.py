@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.linalg import norm
-
+from numpy.random import random
 
 class Nesterov_Optimizers:
     def __init__(self, gamma_u: float = 2, gamma_d: float = 2, lambda_: float = 1.0, like_lasso: bool = True,
@@ -67,8 +67,8 @@ class Nesterov_Optimizers:
             if self.__objective(T) <= self.__m_L(x, T, M):
                 break
             M = M * gamma_u
-        S_L = norm(self.__gradient_f(T) - self.__gradient_f(x)) / norm(T - x)
-        return T, M, S_L
+        #S_L = norm(self.__gradient_f(T) - self.__gradient_f(x)) / norm(T - x)
+        return T, M#, S_L
 
     def __stopping_crit(self, x, verbose: bool):
         eps = self.eps
@@ -86,7 +86,7 @@ class Nesterov_Optimizers:
     def __simple_stopping_crit(self, x_prev, x):
         return norm(x_prev - x) < self.eps
 
-    def __gradient_method(self, x, L, verbose:bool):
+    def __gradient_method(self, x, L, verbose: bool):
         gamma_d = self.gamma_d
         for it in range(self.max_iter):
             x, M = self.__gradient_iteration(x, L)[0:2]
@@ -99,7 +99,7 @@ class Nesterov_Optimizers:
         self.coef_ = x
         return
 
-    def __dual_gradient_method(self, x, L, verbose:bool):
+    def __dual_gradient_method(self, x, L, verbose: bool):
         lambda_ = self.lambda_
         psi_a = np.full(shape=x.shape[0], fill_value=0.5)
         psi_b = -x
@@ -118,7 +118,7 @@ class Nesterov_Optimizers:
         self.coef_ = y
         return
 
-    def __accelerated_method(self, x, L, verbose:bool):
+    def __accelerated_method(self, x, L, verbose: bool):
         gamma_u = self.gamma_u
         gamma_d = self.gamma_d
         lambda_ = self.lambda_
@@ -158,9 +158,9 @@ class Nesterov_Optimizers:
         assert X.any(), "X cannot be a zero matrix"
 
         self.A = X
-        self.coef_ = np.full(shape=X.shape[1], fill_value=0)
+        self.coef_ = random(size=X.shape[1])
         if self.like_lasso:
-            self.lambda_=self.lambda_*X.shape[0]
+            self.lambda_ = self.lambda_ * X.shape[0]
         self.b = y
         self.L = norm(X) ** 2
         self.__name__ = method
