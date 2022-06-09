@@ -12,7 +12,7 @@ def test_models(X_train, y_train):
     methods = ['accelerated', 'gradient', 'dual_gradient']
     models = []
     for method in methods:
-        model = Nesterov_Optimizers()
+        model = Nesterov_Optimizers(max_iter=5000)
         model.fit(X_train, y_train, method=method)
         print(np.linalg.norm(model.get_coef()))
         models.append(model)
@@ -36,6 +36,11 @@ def models_quality(X_test, y_test, models):
         results.append(get_measures(y_test, predictions))
     return pd.DataFrame(results, columns=['RMSE', 'MAE', 'MAE_perc'],
                         index=['accelerated', 'gradient', 'dual_gradient', 'lasso'])
+
+def show_coef(models):
+    for model in models[:-1]:
+        print(model.get_coef())
+    print(models[-1].coef_)
 
 
 # z projektu z roku wyżej

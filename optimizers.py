@@ -131,7 +131,7 @@ class Nesterov_Optimizers:
                 y = (A * x * L + aL * v) / (A * L + aL)
                 T_y = self.__T_L(y, L)
                 grad_diff = self.__gradient_f(y) - self.__gradient_f(T_y)
-                if L * np.dot(grad_diff, y - T_y) >= norm(grad_diff) ** 2:
+                if np.dot(grad_diff, y - T_y) >= (norm(grad_diff,ord=2) ** 2)/L:
                     break
                 L = L * gamma_u
             A = A + aL / L
@@ -139,6 +139,11 @@ class Nesterov_Optimizers:
             psi_b = psi_b + aL * self.__gradient_f(x) / L
             v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
             L = L / gamma_d
+            # M_k=L
+            # a_k=aL/L
+            # L=M_k/gamma_d
+            # x=T_y
+
             if self.__stopping_crit(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
                 break
@@ -154,8 +159,8 @@ class Nesterov_Optimizers:
         assert X.any(), "X cannot be a zero matrix"
 
         self.A = X
-        self.coef_ = random(size=X.shape[1])
-        #self.coef_ = np.full(shape=X.shape[1], fill_value=0)
+        #self.coef_ = random(size=X.shape[1])
+        self.coef_ = np.full(shape=X.shape[1], fill_value=0)
         if self.like_lasso:
             self.lambda_ = self.lambda_ * X.shape[0]
         # self.L = norm(X,ord=2) ** 2
