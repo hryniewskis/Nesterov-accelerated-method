@@ -4,7 +4,7 @@ from numpy.random import random
 
 class Nesterov_Optimizers:
     def __init__(self, gamma_u: float = 2, gamma_d: float = 2, lambda_: float = 1.0, like_lasso: bool = True,
-                 max_iter: int = 5000, tol=1e-4, eps=1e-5):
+                 max_iter: int = 2500, eps=1e-4):#, tol=1e-4):
         # TODO add description
         assert (gamma_u > 1), "parameter gamma_u has to be greater than 1"
         assert (gamma_d >= 1), "parameter gamma_d has to be greater or equal 1"
@@ -14,7 +14,7 @@ class Nesterov_Optimizers:
         self.lambda_ = lambda_
         self.gamma_u = gamma_u
         self.gamma_d = gamma_d
-        self.tol = tol
+        #self.tol = tol
         self.eps = eps
         self.max_iter = max_iter
         self.is_trained = False
@@ -71,31 +71,27 @@ class Nesterov_Optimizers:
         return T, M#, S_L
 
     def __stopping_crit(self, x, verbose: bool):
-        eps = self.eps
         lambda_ = self.lambda_
         grad_f = self.__gradient_f(x)
-        if np.any(np.abs(x) < eps):
-            subgrad_Psi = np.where(np.abs(x) >= eps, np.sign(x) * lambda_,
-                                   -np.sign(grad_f) * np.minimum(np.abs(grad_f), lambda_))
+        if np.any(np.abs(x) <= np.finfo(float).eps):
+            subgrad_Psi = np.where(np.abs(x) <= np.finfo(float).eps,-np.sign(grad_f) * np.minimum(np.abs(grad_f), lambda_), np.sign(x) * lambda_)
         else:
             subgrad_Psi = np.sign(x) * lambda_
         if verbose:
             print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
-        return norm(grad_f + subgrad_Psi) <= self.tol
-
-    def __simple_stopping_crit(self, x_prev, x):
-        return norm(x_prev - x) < self.eps
+        return norm(grad_f + subgrad_Psi) <= self.eps
 
     def __gradient_method(self, x, L, verbose: bool):
         gamma_d = self.gamma_d
         for it in range(self.max_iter):
+            x_prev=x
             x, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / gamma_d)
             if self.__stopping_crit(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
-        x = np.where(np.isclose(x, 0, atol=self.tol), 0, x)
+        #x = np.where(np.isclose(x, 0, atol=self.tol), 0, x)
         self.coef_ = x
         return
 
@@ -114,7 +110,7 @@ class Nesterov_Optimizers:
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
-        y = np.where(np.isclose(y, 0, atol=self.tol), 0, y)
+        #y = np.where(np.isclose(y, 0, atol=self.tol), 0, y)
         self.coef_ = y
         return
 
@@ -140,15 +136,15 @@ class Nesterov_Optimizers:
                 L = L * gamma_u
             A = A + aL / L
             x = T_y
-            if self.__stopping_crit(x, verbose=verbose):
-                print(self.__name__, " early stopping at ", it)
-                break
             psi_b = psi_b + aL * self.__gradient_f(x) / L
             v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
             L = L / gamma_d
+            if self.__stopping_crit(x, verbose=verbose):
+                print(self.__name__, " early stopping at ", it)
+                break
         self.is_trained = True
-        x = np.where(np.isclose(x, 0, atol=self.tol), 0, x)
         self.coef_ = x
+        #x = np.where(np.isclose(x, 0, atol=self.eps), 0, x)
         return
 
     def fit(self, X: np.matrix, y: np.array, method: str = "accelerated", verbose: bool = False):
@@ -159,10 +155,12 @@ class Nesterov_Optimizers:
 
         self.A = X
         self.coef_ = random(size=X.shape[1])
+        #self.coef_ = np.full(shape=X.shape[1], fill_value=0)
         if self.like_lasso:
             self.lambda_ = self.lambda_ * X.shape[0]
+        # self.L = norm(X,ord=2) ** 2
+        self.L = max(norm(X,axis=1)) ** 2
         self.b = y
-        self.L = norm(X) ** 2
         self.__name__ = method
         if method == "gradient":
             return self.__gradient_method(x=self.coef_, L=self.L, verbose=verbose)
@@ -185,4 +183,4 @@ class Nesterov_Optimizers:
         if self.is_trained:
             return self.coef_
         else:
-            raise ValueError("Model isn't trained")
+            raise ValueError("Model isn't trained")   
