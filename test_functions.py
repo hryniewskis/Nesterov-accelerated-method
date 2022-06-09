@@ -41,6 +41,13 @@ def show_coef(models):
     for model in models[:-1]:
         print(model.get_coef())
     print(models[-1].coef_)
+    
+def count_zero_coef(models):
+    res=[]
+    for model in models[:-1]:
+        res.append(sum(model.get_coef()==0))
+    res.append(sum(models[-1].coef_==0))
+    return res
 
 
 # z projektu z roku wyżej
