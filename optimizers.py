@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import norm
 from numpy.random import random
+from sklearn.metrics import mean_squared_error
 from math import sqrt
 
 
@@ -26,6 +27,13 @@ class Nesterov_Optimizers:
         self.coef_ = None
         self.__name__ = None
 
+        self.meassures_dict = {"grad_f": [],
+                               "subgrad_Psi": [],
+                               "combined": []}
+        self.X_acc = []
+        self.X_dual = []
+        self.X_grad = []
+
     def __function_f(self, x):
         return 0.5 * norm(self.b - np.dot(self.A, x)) ** 2
 
@@ -44,8 +52,8 @@ class Nesterov_Optimizers:
                 (L / 2) * norm(x - y) ** 2 + self.__function_Psi(x)
         )
 
-    @staticmethod
-    def __minimum(a, b, d):
+    # @staticmethod
+    def __minimum(self, a, b, d):
         return np.where(
             b < -d,
             -(b + d) / (2 * a),
@@ -72,6 +80,7 @@ class Nesterov_Optimizers:
         return T, M  # , S_L
 
     def __stopping_crit_primal(self, x, verbose: bool):
+        self.X_acc.append(x)
         lambda_ = self.lambda_
         grad_f = self.__gradient_f(x)
         if np.any(np.abs(x) <= np.finfo(float).eps):
@@ -80,24 +89,31 @@ class Nesterov_Optimizers:
         else:
             subgrad_Psi = np.sign(x) * lambda_
         if verbose:
-            print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
+            #self.meassures_dict["grad_f"].append(norm(grad_f))
+            #self.meassures_dict["subgrad_Psi"].append(norm(subgrad_Psi))
+            self.meassures_dict["combined"].append(norm(grad_f + subgrad_Psi))
+
+            #print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
         return norm(grad_f + subgrad_Psi) <= self.eps
 
     def __stopping_crit_dual(self, x, verbose: bool):
-        product = x#np.sum(1, axis=0) - 1
+        product = x  # np.sum(1, axis=0) - 1
         print(product.shape)
         infeasibility = sqrt(sum(((product) > 0) * (product) ** 2))
         if verbose:
+            self.meassures_dict["combined"].append(infeasibility)
+
             print(infeasibility)
         return infeasibility < self.eps
 
-    def __gradient_method(self, x, L, verbose: bool):
+    def __gradient_method(self, x, L, verbose: bool, y_=None):
         gamma_d = self.gamma_d
         for it in range(self.max_iter):
             x_prev = x
             x, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / gamma_d)
             if self.__stopping_crit_primal(x, verbose=verbose):
+                self.X_grad.append(x)
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
@@ -117,12 +133,13 @@ class Nesterov_Optimizers:
             psi_b = psi_b + (1. / M) * self.__gradient_f(v)
             psi_d = psi_d + (1. / M) * lambda_
             v = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
-            #this caused algorithm to stuck at the same time
+            # this caused algorithm to stuck at the same time
             # phi_y = self.__objective(y)
             # if phi_min > phi_y:
             #     phi_min = phi_y
             x = y
             if self.__stopping_crit_primal(x, verbose=verbose):
+                self.X_dual.append(x)
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
@@ -159,6 +176,7 @@ class Nesterov_Optimizers:
         self.coef_ = x
         return
 
+
     def fit(self, X: np.matrix, y: np.array, method: str = "accelerated", verbose: bool = False):
         # TODO add description
         assert y.ndim == 1, "y has to be 1-dimensional"
@@ -178,8 +196,16 @@ class Nesterov_Optimizers:
             return self.__dual_gradient_method(x=self.coef_, L=self.L, verbose=verbose)
         elif method == "accelerated":
             return self.__accelerated_method(x=self.coef_, L=self.L, verbose=verbose)
+        elif method == "accelerated_plot":
+            return self.__accelerated_method_plots(x=self.coef_, L=self.L, y_=y, verbose=verbose)
+        if method == "gradient_plot":
+            return self.__gradient_method_plots(x=self.coef_, L=self.L, y_=y, verbose=verbose)
+        elif method == "dual_gradient_plot":
+            return self.__dual_gradient_method_plots(x=self.coef_, L=self.L, y_=y, verbose=verbose)
+
         else:
             raise ValueError('wrong argument "method"')
+
 
     def predict(self, X):
         # TODO add description
@@ -188,9 +214,33 @@ class Nesterov_Optimizers:
         else:
             raise ValueError("Model isn't trained")
 
+    def predict_plot(self, X, coef):
+        # TODO add description
+        print(np.dot(X, coef).shape)
+        return np.dot(X, coef)
+
     def get_coef(self):
         # TODO add description
         if self.is_trained:
             return self.coef_
         else:
             raise ValueError("Model isn't trained")
+
+    def get_measures(self):
+        if self.is_trained:
+            return self.meassures_dict
+        else:
+            raise ValueError("Model isn't trained")
+
+    def get_hist_coef(self):
+        if self.X_acc:
+            return self.X_acc
+        elif self.X_dual:
+            return self.X_dual
+        elif self.X_grad:
+            return self.X_grad
+        else:
+            print("Coefficient has not been calculated")
+
+
+
