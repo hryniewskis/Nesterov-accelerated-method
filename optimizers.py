@@ -1,10 +1,12 @@
 import numpy as np
 from numpy.linalg import norm
 from numpy.random import random
+from math import sqrt
+
 
 class Nesterov_Optimizers:
     def __init__(self, gamma_u: float = 2, gamma_d: float = 2, lambda_: float = 1.0, like_lasso: bool = True,
-                 max_iter: int = 2500, eps=1e-4):#, tol=1e-4):
+                 max_iter: int = 2500, eps=1e-4):
         # TODO add description
         assert (gamma_u > 1), "parameter gamma_u has to be greater than 1"
         assert (gamma_d >= 1), "parameter gamma_d has to be greater or equal 1"
@@ -14,7 +16,6 @@ class Nesterov_Optimizers:
         self.lambda_ = lambda_
         self.gamma_u = gamma_u
         self.gamma_d = gamma_d
-        #self.tol = tol
         self.eps = eps
         self.max_iter = max_iter
         self.is_trained = False
@@ -67,31 +68,39 @@ class Nesterov_Optimizers:
             if self.__objective(T) <= self.__m_L(x, T, M):
                 break
             M = M * gamma_u
-        #S_L = norm(self.__gradient_f(T) - self.__gradient_f(x)) / norm(T - x)
-        return T, M#, S_L
+        # S_L = norm(self.__gradient_f(T) - self.__gradient_f(x)) / norm(T - x)
+        return T, M  # , S_L
 
-    def __stopping_crit(self, x, verbose: bool):
+    def __stopping_crit_primal(self, x, verbose: bool):
         lambda_ = self.lambda_
         grad_f = self.__gradient_f(x)
         if np.any(np.abs(x) <= np.finfo(float).eps):
-            subgrad_Psi = np.where(np.abs(x) <= np.finfo(float).eps,-np.sign(grad_f) * np.minimum(np.abs(grad_f), lambda_), np.sign(x) * lambda_)
+            subgrad_Psi = np.where(np.abs(x) <= np.finfo(float).eps,
+                                   -np.sign(grad_f) * np.minimum(np.abs(grad_f), lambda_), np.sign(x) * lambda_)
         else:
             subgrad_Psi = np.sign(x) * lambda_
         if verbose:
             print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
         return norm(grad_f + subgrad_Psi) <= self.eps
 
+    def __stopping_crit_dual(self, x, verbose: bool):
+        product = np.sum(self.A * (x.T), axis=0) - 1
+        print(product.shape)
+        infeasibility = sqrt(sum(((product) > 0) * (product) ** 2))
+        if verbose:
+            print(infeasibility)
+        return infeasibility < self.eps
+
     def __gradient_method(self, x, L, verbose: bool):
         gamma_d = self.gamma_d
         for it in range(self.max_iter):
-            x_prev=x
+            x_prev = x
             x, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / gamma_d)
-            if self.__stopping_crit(x, verbose=verbose):
+            if self.__stopping_crit_primal(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
-        #x = np.where(np.isclose(x, 0, atol=self.tol), 0, x)
         self.coef_ = x
         return
 
@@ -100,18 +109,22 @@ class Nesterov_Optimizers:
         psi_a = np.full(shape=x.shape[0], fill_value=0.5)
         psi_b = -x
         psi_d = 0
+        phi_min = np.Inf
         for it in range(self.max_iter):
             y, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / self.gamma_d)
             psi_b = psi_b + (1. / M) * self.__gradient_f(x)
             psi_d = psi_d + (1. / M) * lambda_
             x = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
-            if self.__stopping_crit(y, verbose=verbose):
+            phi_y = self.__objective(y)
+            if phi_min > phi_y:
+                phi_min = phi_y
+                x = y
+            if self.__stopping_crit_primal(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
-        #y = np.where(np.isclose(y, 0, atol=self.tol), 0, y)
-        self.coef_ = y
+        self.coef_ = x
         return
 
     def __accelerated_method(self, x, L, verbose: bool):
@@ -121,8 +134,6 @@ class Nesterov_Optimizers:
 
         psi_a = np.full(shape=x.shape[0], fill_value=0.5)
         psi_b = -x
-        # we know that A == psi_d* self.lambda_
-        # so we dont need to specify psi_d this time
         A = 0
         v = x
         for it in range(self.max_iter):
@@ -131,7 +142,7 @@ class Nesterov_Optimizers:
                 y = (A * x * L + aL * v) / (A * L + aL)
                 T_y = self.__T_L(y, L)
                 grad_diff = self.__gradient_f(y) - self.__gradient_f(T_y)
-                if np.dot(grad_diff, y - T_y) >= (norm(grad_diff,ord=2) ** 2)/L:
+                if np.dot(grad_diff, y - T_y) >= (norm(grad_diff, ord=2) ** 2) / L:
                     break
                 L = L * gamma_u
             A = A + aL / L
@@ -139,17 +150,12 @@ class Nesterov_Optimizers:
             psi_b = psi_b + aL * self.__gradient_f(x) / L
             v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
             L = L / gamma_d
-            # M_k=L
-            # a_k=aL/L
-            # L=M_k/gamma_d
-            # x=T_y
 
-            if self.__stopping_crit(x, verbose=verbose):
+            if self.__stopping_crit_primal(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
         self.coef_ = x
-        #x = np.where(np.isclose(x, 0, atol=self.eps), 0, x)
         return
 
     def fit(self, X: np.matrix, y: np.array, method: str = "accelerated", verbose: bool = False):
@@ -159,12 +165,10 @@ class Nesterov_Optimizers:
         assert X.any(), "X cannot be a zero matrix"
 
         self.A = X
-        #self.coef_ = random(size=X.shape[1])
         self.coef_ = np.full(shape=X.shape[1], fill_value=0)
         if self.like_lasso:
             self.lambda_ = self.lambda_ * X.shape[0]
-        # self.L = norm(X,ord=2) ** 2
-        self.L = max(norm(X,axis=1)) ** 2
+        self.L = max(norm(X, axis=1)) ** 2
         self.b = y
         self.__name__ = method
         if method == "gradient":
@@ -188,4 +192,4 @@ class Nesterov_Optimizers:
         if self.is_trained:
             return self.coef_
         else:
-            raise ValueError("Model isn't trained")   
+            raise ValueError("Model isn't trained")
