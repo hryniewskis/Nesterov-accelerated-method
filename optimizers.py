@@ -117,10 +117,11 @@ class Nesterov_Optimizers:
             psi_b = psi_b + (1. / M) * self.__gradient_f(v)
             psi_d = psi_d + (1. / M) * lambda_
             v = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
-            #this caused algorithm to stuck at the same time
+            #this caused algorithm to stuck
             # phi_y = self.__objective(y)
             # if phi_min > phi_y:
             #     phi_min = phi_y
+            #     x = y
             x = y
             if self.__stopping_crit_primal(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
