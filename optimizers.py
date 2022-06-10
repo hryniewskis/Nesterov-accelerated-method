@@ -84,7 +84,7 @@ class Nesterov_Optimizers:
         return norm(grad_f + subgrad_Psi) <= self.eps
 
     def __stopping_crit_dual(self, x, verbose: bool):
-        product = np.sum(self.A * (x.T), axis=0) - 1
+        product = x#np.sum(1, axis=0) - 1
         print(product.shape)
         infeasibility = sqrt(sum(((product) > 0) * (product) ** 2))
         if verbose:
@@ -110,12 +110,13 @@ class Nesterov_Optimizers:
         psi_b = -x
         psi_d = 0
         phi_min = np.Inf
+        v = x
         for it in range(self.max_iter):
-            y, M = self.__gradient_iteration(x, L)[0:2]
+            y, M = self.__gradient_iteration(v, L)[0:2]
             L = max(L, M * 1.0 / self.gamma_d)
-            psi_b = psi_b + (1. / M) * self.__gradient_f(x)
+            psi_b = psi_b + (1. / M) * self.__gradient_f(v)
             psi_d = psi_d + (1. / M) * lambda_
-            x = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
+            v = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
             phi_y = self.__objective(y)
             if phi_min > phi_y:
                 phi_min = phi_y
@@ -150,7 +151,6 @@ class Nesterov_Optimizers:
             psi_b = psi_b + aL * self.__gradient_f(x) / L
             v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
             L = L / gamma_d
-
             if self.__stopping_crit_primal(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
                 break
