@@ -26,7 +26,7 @@ class Nesterov_Optimizers:
         self.L = None
         self.coef_ = None
         self.__name__ = None
-        self.history=[]
+        #self.history=[]
 
 
     def __function_f(self, x):
@@ -101,7 +101,7 @@ class Nesterov_Optimizers:
             x_prev = x
             x, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / gamma_d)       
-            self.history.append(x)
+            #self.history.append(x)
             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
                 print(self.__name__, " early simple stopping at ", it)
                 break                  
@@ -133,7 +133,7 @@ class Nesterov_Optimizers:
             # if phi_min > phi_y:
             #     phi_min = phi_y
             x = y
-            self.history.append(x)
+            #self.history.append(x)
             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
                 print(self.__name__, " early simple stopping at ", it)
                 break       
@@ -201,7 +201,7 @@ class Nesterov_Optimizers:
             v=self.__minimum(a=psi_a, b=psi_b, d=psi_d)
             A=A+a
             L=L/(gamma_d*gamma_u)
-            self.history.append(x)
+            #self.history.append(x)
             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
                 print(self.__name__, " early simple stopping at ", it)
                 break    
