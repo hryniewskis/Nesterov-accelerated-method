@@ -7,7 +7,7 @@ from math import sqrt
 
 class Nesterov_Optimizers:
     def __init__(self, gamma_u: float = 2, gamma_d: float = 2, lambda_: float = 1.0, like_lasso: bool = True,
-                 max_iter: int = 2500, eps=1e-4):
+                 max_iter: int = 10000, eps=1e-2):
         # TODO add description
         assert (gamma_u > 1), "parameter gamma_u has to be greater than 1"
         assert (gamma_d >= 1), "parameter gamma_d has to be greater or equal 1"
@@ -28,12 +28,6 @@ class Nesterov_Optimizers:
         self.__name__ = None
         self.history=[]
 
-        self.meassures_dict = {"grad_f": [],
-                               "subgrad_Psi": [],
-                               "combined": []}
-        self.X_acc = []
-        self.X_dual = []
-        self.X_grad = []
 
     def __function_f(self, x):
         return 0.5 * norm(self.b - np.dot(self.A, x)) ** 2
@@ -81,16 +75,13 @@ class Nesterov_Optimizers:
         return T, M  # , S_L
     
     def __stopping_simple_cond(self,x_current,x_prev,verbose:bool):
-        self.X_acc.append(x_current)
         lambda_=self.lambda_
         if verbose:
-            self.meassures_dict["combined"].append(norm(x_current-x_prev))
             #print(norm(x_current-x_prev))
-        return norm(x_current-x_prev,ord=2)<self.eps
+            return norm(x_current-x_prev,ord=2)<self.eps
     
     
     def __stopping_optimal_cond(self, x, verbose: bool):
-        self.X_acc.append(x)
         lambda_ = self.lambda_
         grad_f = self.__gradient_f(x)
         if np.any(np.abs(x) <= np.finfo(float).eps):
@@ -99,24 +90,24 @@ class Nesterov_Optimizers:
         else:
             subgrad_Psi = np.sign(x) * lambda_
         if verbose:
-            self.meassures_dict["combined"].append(norm(grad_f + subgrad_Psi))
-            #print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
+            print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
         return norm(grad_f + subgrad_Psi) <= self.eps
 
     def __gradient_method(self, x, L, verbose: bool, y_=None):
         gamma_d = self.gamma_d
         for it in range(self.max_iter):
+            if it % 1000==0:
+                print(it)
             x_prev = x
             x, M = self.__gradient_iteration(x, L)[0:2]
-            L = max(L, M * 1.0 / gamma_d)
-#             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
-#                 print(self.__name__, " early simple stopping at ", it)
-#                 break                  
+            L = max(L, M * 1.0 / gamma_d)       
             self.history.append(x)
-            if self.__stopping_optimal_cond(x, verbose=verbose):
-                self.X_grad.append(x)
-                print(self.__name__, " early stopping at ", it)
-                break
+            if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
+                print(self.__name__, " early simple stopping at ", it)
+                break                  
+#             if self.__stopping_optimal_cond(x, verbose=verbose):
+#                 print(self.__name__, " early stopping at ", it)
+#                 break
         self.is_trained = True
         self.coef_ = x
         return
@@ -129,6 +120,8 @@ class Nesterov_Optimizers:
         phi_min = np.Inf
         v = x
         for it in range(self.max_iter):
+            if it % 1000==0:
+                print(it)
             x_prev=x
             y, M = self.__gradient_iteration(v, L)[0:2]
             L = max(L, M * 1.0 / self.gamma_d)
@@ -140,14 +133,13 @@ class Nesterov_Optimizers:
             # if phi_min > phi_y:
             #     phi_min = phi_y
             x = y
-#             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
-#                 print(self.__name__, " early simple stopping at ", it)
-#                 break       
             self.history.append(x)
-            if self.__stopping_optimal_cond(x, verbose=verbose):
-                self.X_dual.append(x)
-                print(self.__name__, " early stopping at ", it)
-                break             
+            if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
+                print(self.__name__, " early simple stopping at ", it)
+                break       
+#             if self.__stopping_optimal_cond(x, verbose=verbose):
+#                 print(self.__name__, " early stopping at ", it)
+#                 break             
         self.is_trained = True
         self.coef_ = x
         return
@@ -192,6 +184,8 @@ class Nesterov_Optimizers:
         v = x
         L = L/gamma_u
         for it in range(self.max_iter):
+            if it % 1000==0:
+                print(it)
             x_prev=x
             while True:
                 L=L*gamma_u
@@ -207,13 +201,13 @@ class Nesterov_Optimizers:
             v=self.__minimum(a=psi_a, b=psi_b, d=psi_d)
             A=A+a
             L=L/(gamma_d*gamma_u)
-#             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
-#                 print(self.__name__, " early simple stopping at ", it)
-#                 break    
             self.history.append(x)
-            if self.__stopping_optimal_cond(x, verbose=verbose):
-                print(self.__name__, " early stopping at ", it)
-                break
+            if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
+                print(self.__name__, " early simple stopping at ", it)
+                break    
+#             if self.__stopping_optimal_cond(x, verbose=verbose):
+#                 print(self.__name__, " early stopping at ", it)
+#                 break
         self.is_trained = True
         self.coef_ = x
         return
@@ -267,12 +261,6 @@ class Nesterov_Optimizers:
             return self.coef_
         else:
             raise ValueError("Model isn't trained")
-
-#     def get_measures(self):
-#         if self.is_trained:
-#             return self.meassures_dict
-#         else:
-#             raise ValueError("Model isn't trained")
             
     def get_hist_coef(self):
         if self.history:
@@ -280,7 +268,7 @@ class Nesterov_Optimizers:
         else:
             raise ValueError("Model isn't trained")
             
-    def get_measures(self):
+    def get_objective_value(self):
         if self.history:
             tmp= self.history
         else:
@@ -289,6 +277,15 @@ class Nesterov_Optimizers:
         for coef in tmp:
             res.append(self.__objective(coef))
         return res
-
+    
+    def get_f_value(self):
+        if self.history:
+            tmp= self.history
+        else:
+            raise ValueError("Model isn't trained")
+        res=[]
+        for coef in tmp:
+            res.append(self.__function_f(coef))
+        return res
 
 
