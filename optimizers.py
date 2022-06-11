@@ -7,7 +7,7 @@ from math import sqrt
 
 class Nesterov_Optimizers:
     def __init__(self, gamma_u: float = 2, gamma_d: float = 2, lambda_: float = 1.0, like_lasso: bool = True,
-                 max_iter: int = 10000, eps=1e-2):
+                 max_iter: int = 10000, eps=1e-4):
         # TODO add description
         assert (gamma_u > 1), "parameter gamma_u has to be greater than 1"
         assert (gamma_d >= 1), "parameter gamma_d has to be greater or equal 1"
@@ -26,7 +26,7 @@ class Nesterov_Optimizers:
         self.L = None
         self.coef_ = None
         self.__name__ = None
-        #self.history=[]
+        self.history=[]
 
 
     def __function_f(self, x):
@@ -47,7 +47,6 @@ class Nesterov_Optimizers:
                 (L / 2) * norm(x - y) ** 2 + self.__function_Psi(x)
         )
 
-    # @staticmethod
     def __minimum(self, a, b, d):
         return np.where(
             b < -d,
@@ -101,7 +100,7 @@ class Nesterov_Optimizers:
             x_prev = x
             x, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / gamma_d)       
-            #self.history.append(x)
+            self.history.append(x)
             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
                 print(self.__name__, " early simple stopping at ", it)
                 break                  
@@ -128,12 +127,12 @@ class Nesterov_Optimizers:
             psi_b = psi_b + (1. / M) * self.__gradient_f(v)
             psi_d = psi_d + (1. / M) * lambda_
             v = self.__minimum(a=psi_a, b=psi_b, d=psi_d)
-            # this caused algorithm to stuck at the same time
-            # phi_y = self.__objective(y)
-            # if phi_min > phi_y:
-            #     phi_min = phi_y
+#           # this caused algorithm to stuck at the same time
+#             phi_y = self.__objective(y)
+#             if phi_min > phi_y:
+#                 phi_min = phi_y
             x = y
-            #self.history.append(x)
+            self.history.append(x)
             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
                 print(self.__name__, " early simple stopping at ", it)
                 break       
@@ -173,6 +172,8 @@ class Nesterov_Optimizers:
 #         self.is_trained = True
 #         self.coef_ = x
 #         return
+
+
     def __accelerated_method(self, x, L, verbose: bool):
         gamma_u = self.gamma_u
         gamma_d = self.gamma_d
@@ -201,7 +202,7 @@ class Nesterov_Optimizers:
             v=self.__minimum(a=psi_a, b=psi_b, d=psi_d)
             A=A+a
             L=L/(gamma_d*gamma_u)
-            #self.history.append(x)
+            self.history.append(x)
             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
                 print(self.__name__, " early simple stopping at ", it)
                 break    
@@ -232,13 +233,6 @@ class Nesterov_Optimizers:
             return self.__dual_gradient_method(x=self.coef_, L=self.L, verbose=verbose)
         elif method == "accelerated":
             return self.__accelerated_method(x=self.coef_, L=self.L, verbose=verbose)
-        elif method == "accelerated_plot":
-            return self.__accelerated_method_plots(x=self.coef_, L=self.L, y_=y, verbose=verbose)
-        if method == "gradient_plot":
-            return self.__gradient_method_plots(x=self.coef_, L=self.L, y_=y, verbose=verbose)
-        elif method == "dual_gradient_plot":
-            return self.__dual_gradient_method_plots(x=self.coef_, L=self.L, y_=y, verbose=verbose)
-
         else:
             raise ValueError('wrong argument "method"')
 
@@ -276,16 +270,6 @@ class Nesterov_Optimizers:
         res=[]
         for coef in tmp:
             res.append(self.__objective(coef))
-        return res
-    
-    def get_f_value(self):
-        if self.history:
-            tmp= self.history
-        else:
-            raise ValueError("Model isn't trained")
-        res=[]
-        for coef in tmp:
-            res.append(self.__function_f(coef))
         return res
 
 
