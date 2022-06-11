@@ -26,6 +26,7 @@ class Nesterov_Optimizers:
         self.L = None
         self.coef_ = None
         self.__name__ = None
+        self.history=[]
 
         self.meassures_dict = {"grad_f": [],
                                "subgrad_Psi": [],
@@ -78,8 +79,17 @@ class Nesterov_Optimizers:
             M = M * gamma_u
         # S_L = norm(self.__gradient_f(T) - self.__gradient_f(x)) / norm(T - x)
         return T, M  # , S_L
-
-    def __stopping_crit_primal(self, x, verbose: bool):
+    
+    def __stopping_simple_cond(self,x_current,x_prev,verbose:bool):
+        self.X_acc.append(x_current)
+        lambda_=self.lambda_
+        if verbose:
+            self.meassures_dict["combined"].append(norm(x_current-x_prev))
+            #print(norm(x_current-x_prev))
+        return norm(x_current-x_prev,ord=2)<self.eps
+    
+    
+    def __stopping_optimal_cond(self, x, verbose: bool):
         self.X_acc.append(x)
         lambda_ = self.lambda_
         grad_f = self.__gradient_f(x)
@@ -89,22 +99,9 @@ class Nesterov_Optimizers:
         else:
             subgrad_Psi = np.sign(x) * lambda_
         if verbose:
-            #self.meassures_dict["grad_f"].append(norm(grad_f))
-            #self.meassures_dict["subgrad_Psi"].append(norm(subgrad_Psi))
             self.meassures_dict["combined"].append(norm(grad_f + subgrad_Psi))
-
             #print(norm(grad_f), norm(subgrad_Psi), norm(grad_f + subgrad_Psi))
         return norm(grad_f + subgrad_Psi) <= self.eps
-
-    def __stopping_crit_dual(self, x, verbose: bool):
-        product = x  # np.sum(1, axis=0) - 1
-        print(product.shape)
-        infeasibility = sqrt(sum(((product) > 0) * (product) ** 2))
-        if verbose:
-            self.meassures_dict["combined"].append(infeasibility)
-
-            print(infeasibility)
-        return infeasibility < self.eps
 
     def __gradient_method(self, x, L, verbose: bool, y_=None):
         gamma_d = self.gamma_d
@@ -112,7 +109,11 @@ class Nesterov_Optimizers:
             x_prev = x
             x, M = self.__gradient_iteration(x, L)[0:2]
             L = max(L, M * 1.0 / gamma_d)
-            if self.__stopping_crit_primal(x, verbose=verbose):
+#             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
+#                 print(self.__name__, " early simple stopping at ", it)
+#                 break                  
+            self.history.append(x)
+            if self.__stopping_optimal_cond(x, verbose=verbose):
                 self.X_grad.append(x)
                 print(self.__name__, " early stopping at ", it)
                 break
@@ -128,6 +129,7 @@ class Nesterov_Optimizers:
         phi_min = np.Inf
         v = x
         for it in range(self.max_iter):
+            x_prev=x
             y, M = self.__gradient_iteration(v, L)[0:2]
             L = max(L, M * 1.0 / self.gamma_d)
             psi_b = psi_b + (1. / M) * self.__gradient_f(v)
@@ -138,38 +140,78 @@ class Nesterov_Optimizers:
             # if phi_min > phi_y:
             #     phi_min = phi_y
             x = y
-            if self.__stopping_crit_primal(x, verbose=verbose):
+#             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
+#                 print(self.__name__, " early simple stopping at ", it)
+#                 break       
+            self.history.append(x)
+            if self.__stopping_optimal_cond(x, verbose=verbose):
                 self.X_dual.append(x)
                 print(self.__name__, " early stopping at ", it)
-                break
+                break             
         self.is_trained = True
         self.coef_ = x
         return
 
+#     def __accelerated_method(self, x, L, verbose: bool):
+#         gamma_u = self.gamma_u
+#         gamma_d = self.gamma_d
+#         lambda_ = self.lambda_
+
+#         psi_a = np.full(shape=x.shape[0], fill_value=0.5)
+#         psi_b = -x
+#         A = 0
+#         v = x
+#         for it in range(self.max_iter):
+#             while True:
+#                 aL = self.__find_a_times_L(L, A)
+#                 y = (A * x * L + aL * v) / (A * L + aL)
+#                 T_y = self.__T_L(y, L)
+#                 grad_diff = self.__gradient_f(y) - self.__gradient_f(T_y)
+#                 if np.dot(grad_diff, y - T_y) >= (norm(grad_diff, ord=2) ** 2) / L:
+#                     break
+#                 L = L * gamma_u
+#             A = A + aL / L
+#             x = T_y
+#             psi_b = psi_b + aL * self.__gradient_f(x) / L
+#             v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
+#             L = L / gamma_d
+#             if self.__stopping_crit_primal(x, verbose=verbose):
+#                 print(self.__name__, " early stopping at ", it)
+#                 break
+#         self.is_trained = True
+#         self.coef_ = x
+#         return
     def __accelerated_method(self, x, L, verbose: bool):
         gamma_u = self.gamma_u
         gamma_d = self.gamma_d
-        lambda_ = self.lambda_
-
+        lambda_ = self.lambda_        
         psi_a = np.full(shape=x.shape[0], fill_value=0.5)
         psi_b = -x
+        psi_d = 0
         A = 0
         v = x
+        L = L/gamma_u
         for it in range(self.max_iter):
+            x_prev=x
             while True:
-                aL = self.__find_a_times_L(L, A)
-                y = (A * x * L + aL * v) / (A * L + aL)
-                T_y = self.__T_L(y, L)
+                L=L*gamma_u
+                a=(1+sqrt(2*A*L+1))/L
+                y=(A*x+a*v)/(A+a)
+                T_y=self.__T_L(y, L)
                 grad_diff = self.__gradient_f(y) - self.__gradient_f(T_y)
-                if np.dot(grad_diff, y - T_y) >= (norm(grad_diff, ord=2) ** 2) / L:
+                if L*np.dot(grad_diff,y-T_y)>norm(grad_diff)**2:
                     break
-                L = L * gamma_u
-            A = A + aL / L
-            x = T_y
-            psi_b = psi_b + aL * self.__gradient_f(x) / L
-            v = self.__minimum(a=psi_a, b=psi_b, d=A * lambda_)
-            L = L / gamma_d
-            if self.__stopping_crit_primal(x, verbose=verbose):
+            x=T_y
+            psi_b=psi_b+a*self.__gradient_f(x)
+            psi_d=psi_d+a*lambda_
+            v=self.__minimum(a=psi_a, b=psi_b, d=psi_d)
+            A=A+a
+            L=L/(gamma_d*gamma_u)
+#             if self.__stopping_simple_cond(x,x_prev, verbose=verbose):
+#                 print(self.__name__, " early simple stopping at ", it)
+#                 break    
+            self.history.append(x)
+            if self.__stopping_optimal_cond(x, verbose=verbose):
                 print(self.__name__, " early stopping at ", it)
                 break
         self.is_trained = True
@@ -226,21 +268,27 @@ class Nesterov_Optimizers:
         else:
             raise ValueError("Model isn't trained")
 
-    def get_measures(self):
-        if self.is_trained:
-            return self.meassures_dict
+#     def get_measures(self):
+#         if self.is_trained:
+#             return self.meassures_dict
+#         else:
+#             raise ValueError("Model isn't trained")
+            
+    def get_hist_coef(self):
+        if self.history:
+            return self.history
         else:
             raise ValueError("Model isn't trained")
-
-    def get_hist_coef(self):
-        if self.X_acc:
-            return self.X_acc
-        elif self.X_dual:
-            return self.X_dual
-        elif self.X_grad:
-            return self.X_grad
+            
+    def get_measures(self):
+        if self.history:
+            tmp= self.history
         else:
-            print("Coefficient has not been calculated")
+            raise ValueError("Model isn't trained")
+        res=[]
+        for coef in tmp:
+            res.append(self.__objective(coef))
+        return res
 
 
 
